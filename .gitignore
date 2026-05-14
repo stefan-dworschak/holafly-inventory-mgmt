@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# OS generated files
+*.swp
+*.swo
+*.swn
+
+# Virtual environments
+.venv
+
+# Secrets
+*.env
