@@ -3,7 +3,8 @@ from typing import List
 from inventory.domain.exceptions import (
     ProductNotFoundException,
     NoValidUpdateDataException,
-    UpdateFailedException
+    UpdateFailedException,
+    MultipleProductsFoundException,
 )
 from inventory.adapters.persistence.django_orm.models import Product
 from inventory.domain.ports.repositories.inventory_repository import InventoryRepository
@@ -36,23 +37,33 @@ class DjangoInventoryAdapter(InventoryRepository):
 
     def update_product(self, sku: str, **kwargs) -> Product:
         """ Updates the name, quantity or the low stock threshold based on a product's SKU """
-        try:
-            product = Product.objects.get(sku=sku)
-            # Update only fields that are not none
-            update_data = {k: v for k, v in kwargs.items() if v is not None}
-            if not update_data:
-                raise NoValidUpdateDataException()
-
-            updated = product.update(**update_data)
-            if not updated:
-                raise UpdateFailedException(sku)
-
-            return Product.objects.get(sku=sku)
-            
-        except Product.DoesNotExist:
+        product = Product.objects.filter(sku=sku)
+        if not product.exists():
             raise ProductNotFoundException(sku)
+
+        if product.count() > 1:
+            raise MultipleProductsFoundException(sku)
+
+        # Update only fields that are not none
+        update_data = {k: v for k, v in kwargs.items() if v is not None}
+        if not update_data:
+            raise NoValidUpdateDataException()
+
+        updated = product.update(**update_data)
+        if not updated:
+            raise UpdateFailedException(sku)
+
+        return Product.objects.get(sku=sku)
 
     def delete_product(self, sku: str) -> bool:
         """ Deletes a product from the inventory based on an SKU """
-        pass
+        product = Product.objects.filter(sku=sku)
+        if not product.exists():
+            raise ProductNotFoundException(sku)
+    
+        if product.count() > 1:
+            raise MultipleProductsFoundException(sku)
+
+        deleted, deleted_count =  product.delete()
+        return deleted
 
