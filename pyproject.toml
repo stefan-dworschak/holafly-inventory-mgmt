@@ -7,4 +7,20 @@ requires-python = ">=3.12"
 dependencies = [
     "django>=6.0.5",
     "djangorestframework>=3.17.1",
+    "pytest>=9.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "beautifulsoup4>=4.14.3",
+    "pytest-django>=4.12.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["inventory"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+DJANGO_SETTINGS_MODULE = "config.test_settings"
+markers = [
+    "integration",
 ]

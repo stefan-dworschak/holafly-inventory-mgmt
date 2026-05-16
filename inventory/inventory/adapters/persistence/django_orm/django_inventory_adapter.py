@@ -1,13 +1,15 @@
+from typing import List
+
 from inventory.domain.exceptions import (
     ProductNotFoundException,
     NoValidUpdateDataException,
     UpdateFailedException
 )
-from inventory.domain.adapters.django_orm.models import Product
+from inventory.adapters.persistence.django_orm.models import Product
 from inventory.domain.ports.repositories.inventory_repository import InventoryRepository
 
 
-class DjangoInventoryAdapter(InventoryInventoryRepository):
+class DjangoInventoryAdapter(InventoryRepository):
     # How to specify database here
     def list_products(self) -> List[Product]:
         """ List all products in the inventory """

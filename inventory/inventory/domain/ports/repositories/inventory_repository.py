@@ -1,6 +1,6 @@
 from typing import List, Protocol
 
-from products.models import Product
+from inventory.domain.models.product import Product
 
 class InventoryRepository(Protocol):
     def list_products(self) -> List[Product]:

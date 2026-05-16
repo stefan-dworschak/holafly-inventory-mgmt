@@ -1,3 +1,3 @@
-from django.db import models
+from inventory.adapters.persistence.django_orm.models import Product
 
-# Create your models here.
+__all__ = ["Product"]
