@@ -1,9 +1,9 @@
-from inventory.inventory.domain.models.products import Product
+from inventory.domain.models.product import Product
 
-from inventory.inventory.domain.ports.repositories.inventory_repository import InventoryRepository
-from inventory.inventory.domain.ports.events.events_service import EventsService
+from inventory.domain.ports.repositories.inventory_repository import InventoryRepository
+from inventory.domain.ports.events.events_service import EventsService
 
-from inventory.inventory.domain.exceptions import NotEnoughStockException
+from inventory.domain.exceptions import NotEnoughStockException
 
 
 
@@ -12,11 +12,11 @@ class InventoryService:
             inventory_repository: InventoryRepository,
             events_service: EventsService
         ):
-        self.inventory_repository = InventoryRepository()
-        self.events_service = EventsService()
+        self.inventory_repository = inventory_repository 
+        self.events_service = events_service 
 
     def process_order(self, sku: str, quantity: int) -> Product:
-        product = self.inventory_repository.get(sku=sku)
+        product = self.inventory_repository.get_product_detail(sku=sku)
 
         if product.quantity - quantity < 0:
             raise NotEnoughStockException()

@@ -1,5 +1,7 @@
 import pytest
 
+from tests.fixtures import product
+
 from inventory.domain.exceptions import (
     ProductNotFoundException,
     NoValidUpdateDataException,
@@ -15,15 +17,6 @@ from inventory.adapters.persistence.django_orm.models import (
     Product
 )
 
-
-@pytest.fixture(scope='module')
-def product() -> Product:
-    return Product(
-        sku="P1",
-        name="Product 1",
-        quantity=10,
-        low_stock_threshold=5,
-    )
 
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
