@@ -138,4 +138,7 @@ REST_FRAMEWORK = {
 # Celery
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_TASK_IGNORE_RESULT = True
+CELERY_TASK_ROUTES = {
+    'inventory.messaging.send_low_stock_alert': {'queue': 'procurement'},
+}
 
