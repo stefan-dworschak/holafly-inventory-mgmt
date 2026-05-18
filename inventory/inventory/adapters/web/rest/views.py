@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from django.http import Http404
+from drf_spectacular.utils import extend_schema
 from rest_framework.views import APIView
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -25,12 +26,15 @@ class ProductList(APIView):
     """
 
     container = create_prod_container()
+    serializer_class = ProductSerializer
 
+    @extend_schema(responses=ProductSerializer(many=True))
     def get(self, request: Request) -> Response:
         products = self.container.inventory_service.list_stock_levels()
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
 
+    @extend_schema(request=ProductSerializer, responses={201: ProductSerializer})
     def post(self, request: Request) -> Response:
         serializer = ProductSerializer(data=request.data)
         if serializer.is_valid():
@@ -45,12 +49,18 @@ class ProductDetail(APIView):
     """
 
     container = create_prod_container()
+    serializer_class = ProductSerializer
 
+    @extend_schema(responses=ProductSerializer)
     def get(self, request: Request, product_id: UUID) -> Response:
-        product = self.container.inventory_service.get_stock_product(product_id=product_id)
+        try:
+            product = self.container.inventory_service.get_stock_product(product_id=product_id)
+        except ProductNotFoundException as error:
+            return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
         serializer = ProductSerializer(product)
         return Response(serializer.data)
 
+    @extend_schema(request=ProductUpdateSerializer, responses=ProductSerializer)
     def patch(self, request: Request, product_id: UUID) -> Response:
         product = self.container.inventory_service.get_stock_product(product_id=product_id)
         serializer = ProductUpdateSerializer(product, data=request.data)
@@ -70,6 +80,7 @@ class ProductDetail(APIView):
             return Response(updated_product.as_dict())
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(responses={204: None})
     def delete(self, request, product_id: UUID) -> Response:
         deleted = self.container.inventory_service.delete_product_from_stock(product_id=product_id)
         if not deleted:

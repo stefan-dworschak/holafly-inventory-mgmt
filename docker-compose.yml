@@ -1,0 +1,57 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  inventory:
+    image: holafly-inventory:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.Inventory
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      DEBUG: "True"
+      DATABASE_URL: sqlite:////data/inventory.sqlite3
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./inventory:/app/inventory
+      - ./data:/data
+    depends_on:
+      - redis
+
+  procurement:
+    image: holafly-procurement:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.Procurement
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PROCUREMENT_DATABASE_URL: sqlite:////data/procurement.sqlite3
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./procurement:/app/procurement
+      - ./data:/data
+    depends_on:
+      - redis
+
+  celery:
+    image: holafly-procurement:latest
+    command: ["celery", "-A", "procurement.adapters.messaging.celery.app", "worker", "--loglevel=info"]
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      PROCUREMENT_DATABASE_URL: sqlite:////data/procurement.sqlite3
+    volumes:
+      - ./procurement:/app/procurement
+      - ./data:/data
+    depends_on:
+      - redis

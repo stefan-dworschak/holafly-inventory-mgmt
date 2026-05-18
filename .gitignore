@@ -17,3 +17,6 @@ wheels/
 
 # Secrets
 *.env
+
+# Local SQLite databases
+/data/*.sqlite3
