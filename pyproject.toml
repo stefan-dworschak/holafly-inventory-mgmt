@@ -25,7 +25,7 @@ dev = [
 pythonpath = ["inventory"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-DJANGO_SETTINGS_MODULE = "config.test_settings"
+DJANGO_SETTINGS_MODULE = "config.settings.test_settings"
 CELERY_BROKER_URL = "redis://localhost:6379/0"
 markers = [
     "integration",

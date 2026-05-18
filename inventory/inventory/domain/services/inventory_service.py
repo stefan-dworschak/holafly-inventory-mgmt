@@ -40,7 +40,7 @@ class InventoryService:
         product = self.inventory_repository.get_product_detail(product_id=product_id)
 
         if product.quantity - quantity <= 0:
-            raise NotEnoughStockException()
+            raise NotEnoughStockException(product_id, quantity)
         
         updated_product = self.inventory_repository.update_product(
             product_id=product_id, quantity=(product.quantity - quantity))

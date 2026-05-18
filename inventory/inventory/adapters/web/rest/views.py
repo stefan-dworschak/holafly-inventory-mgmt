@@ -7,6 +7,12 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from inventory.config.container import create_prod_container
+from inventory.domain.exceptions import (
+    NotEnoughStockException,
+    ProductNotFoundException,
+    MultipleProductsFoundException,
+    UpdateFailedException
+)
 from inventory.adapters.web.rest.serializers import (
     ProductSerializer,
     ProductUpdateSerializer,
@@ -49,10 +55,18 @@ class ProductDetail(APIView):
         product = self.container.inventory_service.get_stock_product(product_id=product_id)
         serializer = ProductUpdateSerializer(product, data=request.data)
         if serializer.is_valid():
-            updated_product = self.container.inventory_service.update_stock_for_product(
-                product_id=product_id,
-                quantity=request.data["quantity"],
-            )
+            try:
+                updated_product = self.container.inventory_service.update_stock_for_product(
+                    product_id=product_id,
+                    quantity=request.data["quantity"],
+                )
+            except (
+                NotEnoughStockException,
+                ProductNotFoundException,
+                MultipleProductsFoundException,
+                UpdateFailedException
+                ) as error:
+                return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
             return Response(updated_product.as_dict())
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
