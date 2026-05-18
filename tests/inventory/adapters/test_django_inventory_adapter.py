@@ -1,6 +1,7 @@
-import pytest
+from uuid import UUID
+from uuid import uuid4
 
-from tests.fixtures import product
+import pytest
 
 from inventory.domain.exceptions import (
     ProductNotFoundException,
@@ -20,7 +21,7 @@ from inventory.adapters.persistence.django_orm.models import (
 
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
-def test_create_product():
+def test_add_product():
     adapter = DjangoInventoryAdapter()
     product = adapter.add_product(
         sku="P1",
@@ -56,7 +57,9 @@ def test_get_product_detail(product: Product):
     product.save()
 
     adapter = DjangoInventoryAdapter()
-    product = adapter.get_product_detail(sku="P1")
+    product = adapter.get_product_detail(
+        product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6')
+    )
 
     assert product.sku == "P1"
     assert product.name == "Product 1"
@@ -70,7 +73,10 @@ def test_update_product(product: Product):
     product.save()
 
     adapter = DjangoInventoryAdapter()
-    updated_product = adapter.update_product(sku="P1", name="Product 2")
+    updated_product = adapter.update_product(
+        product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6'),
+        name="Product 2"
+    )
 
     assert updated_product.sku == "P1"
     assert updated_product.name == "Product 2"
@@ -89,10 +95,12 @@ def test_update_product_exceptions(product: Product):
     UpdateFailedException,
     MultipleProductsFoundException,
     with pytest.raises(ProductNotFoundException):
-        adapter.update_product(sku="P2")
+        adapter.update_product(product_id=uuid4())
 
     with pytest.raises(NoValidUpdateDataException):
-        adapter.update_product(sku="P1")
+        adapter.update_product(
+            product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6')
+        )
     
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
@@ -100,6 +108,6 @@ def test_delete_product(product: Product):
     product.save()
 
     adapter = DjangoInventoryAdapter()
-    deleted = adapter.delete_product(sku="P1")
+    deleted = adapter.delete_product(product_id=product.id)
     assert deleted == 1 
 

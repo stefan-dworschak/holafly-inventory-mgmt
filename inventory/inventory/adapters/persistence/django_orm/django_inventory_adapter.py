@@ -1,4 +1,8 @@
 from typing import List
+from uuid import UUID
+
+from pydantic import validate_call
+from pydantic import ConfigDict
 
 from inventory.domain.exceptions import (
     ProductNotFoundException,
@@ -6,19 +10,36 @@ from inventory.domain.exceptions import (
     UpdateFailedException,
     MultipleProductsFoundException,
 )
-from inventory.adapters.persistence.django_orm.models import Product
+from inventory.adapters.persistence.django_orm.models import Product as DjangoProduct
 from inventory.domain.ports.repositories.inventory_repository import InventoryRepository
+from inventory.domain.models.product import Product as DomainProduct
+
+validated = validate_call(
+    config=ConfigDict(arbitrary_types_allowed=True),
+    validate_return=True,
+)
 
 
 class DjangoInventoryAdapter(InventoryRepository):
-    # How to specify database here
-    def list_products(self) -> List[Product]:
+    @staticmethod
+    def _to_domain(product: DjangoProduct) -> DomainProduct:
+        return DomainProduct(
+            id=product.id,
+            sku=product.sku,
+            name=product.name,
+            quantity=product.quantity,
+            low_stock_threshold=product.low_stock_threshold,
+        )
+
+    @validated
+    def list_products(self) -> List[DomainProduct]:
         """ List all products in the inventory """
-        return Product.objects.all() 
-    
-    def add_product(self, sku: str, name: str, quantity: int = None, low_stock_threshold: int = None) -> None:
+        return [self._to_domain(product) for product in DjangoProduct.objects.all()]
+
+    @validated
+    def add_product(self, sku: str, name: str, quantity: int = None, low_stock_threshold: int = None) -> DomainProduct:
         """ Adds a new product to the inventory """
-        product, created = Product.objects.get_or_create(
+        product, created = DjangoProduct.objects.get_or_create(
             sku=sku,
             defaults={
                 'name': name,
@@ -26,23 +47,25 @@ class DjangoInventoryAdapter(InventoryRepository):
                 'low_stock_threshold': low_stock_threshold,
             }
         )
-        return product
+        return self._to_domain(product)
 
-    def get_product_detail(self, sku: str) -> Product:
+    @validated
+    def get_product_detail(self, product_id: UUID) -> DomainProduct:
         """ Gets the product details based on an SKU """
         try:
-            return Product.objects.get(sku=sku)
-        except Product.DoesNotExist:
-            raise ProductNotFoundException(sku)
+            return self._to_domain(DjangoProduct.objects.get(id=product_id))
+        except DjangoProduct.DoesNotExist:
+            raise ProductNotFoundException(product_id)
 
-    def update_product(self, sku: str, **kwargs) -> Product:
+    @validated
+    def update_product(self, product_id: UUID, **kwargs) -> DomainProduct:
         """ Updates the name, quantity or the low stock threshold based on a product's SKU """
-        product = Product.objects.filter(sku=sku)
+        product = DjangoProduct.objects.filter(id=product_id)
         if not product.exists():
-            raise ProductNotFoundException(sku)
+            raise ProductNotFoundException(product_id)
 
         if product.count() > 1:
-            raise MultipleProductsFoundException(sku)
+            raise MultipleProductsFoundException(product_id)
 
         # Update only fields that are not none
         update_data = {k: v for k, v in kwargs.items() if v is not None}
@@ -51,19 +74,20 @@ class DjangoInventoryAdapter(InventoryRepository):
 
         updated = product.update(**update_data)
         if not updated:
-            raise UpdateFailedException(sku)
+            raise UpdateFailedException(product_id)
 
-        return Product.objects.get(sku=sku)
+        return self._to_domain(DjangoProduct.objects.get(id=product_id))
 
-    def delete_product(self, sku: str) -> bool:
+    @validated
+    def delete_product(self, product_id: UUID) -> bool:
         """ Deletes a product from the inventory based on an SKU """
-        product = Product.objects.filter(sku=sku)
+        product = DjangoProduct.objects.filter(id=product_id)
         if not product.exists():
-            raise ProductNotFoundException(sku)
+            raise ProductNotFoundException(product_id)
     
         if product.count() > 1:
-            raise MultipleProductsFoundException(sku)
+            raise MultipleProductsFoundException(product_id)
 
-        deleted, deleted_count =  product.delete()
+        deleted, deleted_count = product.delete()
         return deleted
 

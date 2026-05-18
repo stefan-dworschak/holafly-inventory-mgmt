@@ -134,3 +134,7 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 25,
 }
 
+# Celery
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_TASK_IGNORE_RESULT = True
+

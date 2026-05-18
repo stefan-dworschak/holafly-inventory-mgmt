@@ -1,4 +1,5 @@
 from typing import List, Protocol
+from uuid import UUID
 
 from inventory.domain.models.product import Product
 
@@ -11,15 +12,15 @@ class InventoryRepository(Protocol):
         """ Adds a new product to the inventory """
         pass
 
-    def get_product_detail(self, sku: str) -> Product:
+    def get_product_detail(self, product_id: UUID) -> Product:
         """ Gets the product details based on an SKU """
         pass
 
-    def update_product(self, sku: str, name: str = None, quantity: int = None, low_stock_threshold: int = None) -> Product:
+    def update_product(self, product_id: UUID, sku: str, name: str = None, quantity: int = None, low_stock_threshold: int = None) -> Product:
         """ Updates the name, quantity or the low stock threshold based on a product's SKU """
         pass
 
-    def delete_product(self, sku: str) -> bool:
+    def delete_product(self, product_id: UUID) -> bool:
         """ Deletes a product from the inventory based on an SKU """
         pass
 
