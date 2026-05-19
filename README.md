@@ -1,4 +1,21 @@
-# Holafly
+# Holafly Distributed Inventory & Procurement System
+
+## Overview 
+
+The goal is to build a Distributed Inventory & Procurement System. You must create a
+system where an Inventory service manages stock levels and triggers a procurement alert when
+stock is low.
+### Technical Requirements
+  1. **Microservice A:** Product Inventory (The Core)
+    - **Framework:** Any (Django Rest Framework, FastAPI, Flask, or a simple Python script).
+    - **Architecture:** Implement Hexagonal Architecture (Ports and Adapters).
+    - **Business Logic:** A product cannot have negative stock. If stock drops below a configurable threshold (default: 5), trigger a "Low Stock" event.
+  1. **Microservice B:** Procurement Mock
+    - **Framework:** Any (Django Rest Framework, FastAPI, Flask, or a simple Python script).
+    - **Function:** Expose an endpoint or listen to a queue to receive "Restock Requests" from Microservice A.
+
+
+## Implementation
 
 Two micro-services that communicate over a Celery/Redis message bus:
 
@@ -80,6 +97,49 @@ The rules:
 
 This means swapping SQLAlchemy for Postgres, or Celery for SQS, is a
 one-adapter change — the domain doesn't know or care.
+
+---
+
+## Database
+
+SQLite is the default for both services to keep local setup friction-free —
+no extra container, no credentials, no `CREATE DATABASE` step. Clone the
+repo, run the services, and the schema is provisioned into a file under
+`data/`. This is ideal for development, demos, and the test suite, but
+SQLite is not recommended for production (single-writer locking, limited
+concurrency, no network access).
+
+For production, swap the driver via the `DATABASE_URL` and
+`PROCUREMENT_DATABASE_URL` environment variables — no code changes needed.
+
+### PostgreSQL
+
+```bash
+# inventory (Django)
+DATABASE_URL=postgres://user:password@db-host:5432/inventory
+
+# procurement (SQLAlchemy)
+PROCUREMENT_DATABASE_URL=postgresql+psycopg://user:password@db-host:5432/procurement
+```
+
+Install the driver: `uv add psycopg[binary]`.
+
+### MySQL
+
+```bash
+# inventory (Django)
+DATABASE_URL=mysql://user:password@db-host:3306/inventory
+
+# procurement (SQLAlchemy)
+PROCUREMENT_DATABASE_URL=mysql+pymysql://user:password@db-host:3306/procurement
+```
+
+Install the driver: `uv add mysqlclient` (inventory) and
+`uv add pymysql` (procurement).
+
+Inventory uses Django migrations (`manage.py migrate`); procurement uses
+SQLAlchemy `create_all()` on startup, so neither service needs a separate
+schema-management step when switching backends.
 
 ---
 

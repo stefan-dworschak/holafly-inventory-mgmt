@@ -4,7 +4,7 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "holafly",
+    "holafly-inventory-mgmt",
     "inventory",
     "procurement",
 ]
@@ -430,7 +430,7 @@ wheels = [
 ]
 
 [[package]]
-name = "holafly"
+name = "holafly-inventory-mgmt"
 version = "0.1.0"
 source = { virtual = "." }
 

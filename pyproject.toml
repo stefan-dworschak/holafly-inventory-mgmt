@@ -1,5 +1,5 @@
 [project]
-name = "holafly"
+name = "holafly-inventory-mgmt"
 version = "0.1.0"
 description = "Holafly inventory + procurement services"
 readme = "README.md"
