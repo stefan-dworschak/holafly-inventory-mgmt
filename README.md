@@ -56,17 +56,32 @@ The repo is a uv workspace with two members (`inventory/`, `procurement/`).
 `--all-packages` installs the runtime dependencies of both members into a
 single `.venv` at the repo root.
 
+> **Production checklist — do not skip.** `.env.example` ships with dev
+> placeholders (`SECRET_KEY=devsecret`, `PROCUREMENT_API_TOKEN=devtoken`)
+> only so that local checkout-and-run works. Both services **refuse to
+> start** if `SECRET_KEY` or `PROCUREMENT_API_TOKEN` are missing — there is
+> no in-code fallback — but they will happily boot with the dev values if
+> you forget to replace them. Before any non-local deploy, regenerate both:
+>
+> ```bash
+> python -c "import secrets; print(secrets.token_urlsafe(64))"  # SECRET_KEY
+> python -c "import secrets; print(secrets.token_urlsafe(32))"  # PROCUREMENT_API_TOKEN
+> ```
+
 ### Environment variables
 
-| Variable                     | Purpose                                  | Default                                |
-| ---------------------------- | ---------------------------------------- | -------------------------------------- |
-| `DEBUG`                      | Django debug mode                        | `True`                                 |
-| `SECRET_KEY`                 | Django secret key                        | `devsecret`                            |
-| `ALLOWED_HOSTS`              | Django allowed hosts                     | `*`                                    |
-| `CELERY_BROKER_URL`          | Redis URL used by both services          | `redis://redis:6379/0`                 |
-| `PROCUREMENT_API_TOKEN`      | Bearer token required by the FastAPI API | `devtoken`                             |
-| `DATABASE_URL`               | Inventory DB URL                         | `sqlite:///<repo>/data/inventory.sqlite3`   |
-| `PROCUREMENT_DATABASE_URL`   | Procurement DB URL                       | `sqlite:///<repo>/data/procurement.sqlite3` |
+Variables marked **required** have no in-code default — both services fail
+fast at startup if they're missing.
+
+| Variable                     | Purpose                                  | Default / Required                                |
+| ---------------------------- | ---------------------------------------- | ------------------------------------------------- |
+| `SECRET_KEY`                 | Django secret key                        | **required** (no default)                         |
+| `PROCUREMENT_API_TOKEN`      | Bearer token required by the FastAPI API | **required** (no default)                         |
+| `DEBUG`                      | Django debug mode                        | `False`                                           |
+| `ALLOWED_HOSTS`              | Django allowed hosts                     | `[]` (deny all)                                   |
+| `CELERY_BROKER_URL`          | Redis URL used by both services          | `redis://localhost:6379/0`                        |
+| `DATABASE_URL`               | Inventory DB URL                         | `sqlite:///<repo>/data/inventory.sqlite3`         |
+| `PROCUREMENT_DATABASE_URL`   | Procurement DB URL                       | `sqlite:///<repo>/data/procurement.sqlite3`       |
 
 ---
 
@@ -108,6 +123,11 @@ repo, run the services, and the schema is provisioned into a file under
 `data/`. This is ideal for development, demos, and the test suite, but
 SQLite is not recommended for production (single-writer locking, limited
 concurrency, no network access).
+
+> Both services always read/write SQLite from the repo-root `data/`
+> directory — local runs use it directly, and Docker bind-mounts
+> `./data` to `/data` so the same files persist across rebuilds. The
+> directory is auto-created on settings import if it doesn't exist.
 
 For production, swap the driver via the `DATABASE_URL` and
 `PROCUREMENT_DATABASE_URL` environment variables — no code changes needed.
@@ -193,7 +213,17 @@ You'll need Redis running locally:
 docker run --rm -p 6379:6379 redis:7-alpine
 ```
 
-Then start the three Python processes, each in its own terminal:
+Then load environment variables into your shell **before** starting any of
+the services or the worker — both services fail to start if `SECRET_KEY`
+or `PROCUREMENT_API_TOKEN` are not present in the environment:
+
+```bash
+set -a; source .env; set +a
+```
+
+`start_inventory.sh` and `start_procurement.sh` already source `.env`
+themselves, but the standalone Celery worker invocation below does not —
+source it in each terminal you start the worker from.
 
 ```bash
 # Inventory (Django/DRF)
@@ -202,7 +232,7 @@ Then start the three Python processes, each in its own terminal:
 # Procurement (FastAPI)
 ./start_procurement.sh
 
-# Procurement Celery worker
+# Procurement Celery worker (remember `set -a; source .env; set +a` first)
 uv run celery -A procurement.adapters.messaging.celery.app worker --loglevel=info
 ```
 
