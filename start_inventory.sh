@@ -12,4 +12,5 @@ DRF_TOKEN=$(uv run --package inventory python inventory/manage.py drf_create_tok
 
 echo "Created DRF Token: ${DRF_TOKEN}"
 
+export CELERY_BROKER_URL=redis://localhost:6379/0
 uv run --package inventory python inventory/manage.py runserver 0.0.0.0:8000

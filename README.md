@@ -59,9 +59,21 @@ single `.venv` at the repo root.
 > by `root`, which then blocks local (non-Docker) runs until you `chown`
 > it back. Create it once up-front with `mkdir -p data` to avoid both.
 
-`.env.example` ships with working dev placeholders so you can clone and run
-immediately. **Before deploying anywhere non-local**, replace the dev
-secrets — see [Environment variables](#environment-variables) below.
+`.env.example` ships with `SECRET_KEY` and `PROCUREMENT_API_TOKEN` **commented
+out** — both services refuse to start without them, so you must set them
+before running (even for local dev). Generate fresh values and append them
+straight to `.env`:
+
+```bash
+# Strip any existing entries, then append fresh secrets
+sed -i.bak '/^SECRET_KEY=/d; /^PROCUREMENT_API_TOKEN=/d' .env && rm .env.bak
+printf 'SECRET_KEY=%s\n'            "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> .env
+printf 'PROCUREMENT_API_TOKEN=%s\n' "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
+```
+
+Confirm with `grep -E '^(SECRET_KEY|PROCUREMENT_API_TOKEN)=' .env` — each
+variable should appear exactly once. See
+[Environment variables](#environment-variables) below for the full list.
 
 ---
 
@@ -92,7 +104,7 @@ docker compose run --rm inventory python manage.py migrate
 Seed the admin user from the shipped fixture, then mint a DRF token:
 
 ```bash
-docker compose run --rm inventory python manage.py loaddata fixtures/users.json
+docker compose run --rm inventory python manage.py loaddata /fixtures/users.json
 docker compose run --rm inventory python manage.py drf_create_token admin
 ```
 
@@ -115,17 +127,8 @@ You'll need Redis running locally:
 docker run --rm -p 6379:6379 redis:7-alpine
 ```
 
-Then load environment variables into your shell **before** starting any of
-the services or the worker — both services fail to start if `SECRET_KEY`
-or `PROCUREMENT_API_TOKEN` are not present in the environment:
-
-```bash
-set -a; source .env; set +a
-```
-
-`start_inventory.sh` and `start_procurement.sh` already source `.env`
-themselves, but the standalone Celery worker invocation below does not —
-source it in each terminal you start the worker from.
+Each start script sources `.env` and exports `CELERY_BROKER_URL` itself —
+run them in three separate terminals:
 
 ```bash
 # Inventory (Django/DRF)
@@ -134,8 +137,8 @@ source it in each terminal you start the worker from.
 # Procurement (FastAPI)
 ./start_procurement.sh
 
-# Procurement Celery worker (remember `set -a; source .env; set +a` first)
-uv run celery -A procurement.adapters.messaging.celery.app worker --loglevel=info
+# Procurement Celery worker
+./start_celery_worker.sh
 ```
 
 ---
@@ -286,27 +289,14 @@ fast at startup if they're missing.
 | `PROCUREMENT_API_TOKEN`      | Bearer token required by the FastAPI API | **required** (no default)                         |
 | `DEBUG`                      | Django debug mode                        | `False`                                           |
 | `ALLOWED_HOSTS`              | Django allowed hosts                     | `[]` (deny all)                                   |
-| `CELERY_BROKER_URL`          | Redis URL used by both services          | `redis://localhost:6379/0`                        |
+| `CELERY_BROKER_URL`          | Redis URL used by both services          | set in `docker-compose.yml` / `start_*.sh`, not `.env` |
 | `DATABASE_URL`               | Inventory DB URL                         | `sqlite:///<repo>/data/inventory.sqlite3`         |
 | `PROCUREMENT_DATABASE_URL`   | Procurement DB URL                       | `sqlite:///<repo>/data/procurement.sqlite3`       |
 
-> **Production checklist — do not skip.** `.env.example` ships with dev
-> placeholders (`SECRET_KEY=devsecret`, `PROCUREMENT_API_TOKEN=devtoken`)
-> only so that local checkout-and-run works. Both services **refuse to
-> start** if `SECRET_KEY` or `PROCUREMENT_API_TOKEN` are missing — there is
-> no in-code fallback — but they will happily boot with the dev values if
-> you forget to replace them. After `cp .env.example .env`, regenerate
-> both and write them straight into `.env`:
->
-> ```bash
-> # Strip the dev placeholders, then append fresh secrets
-> sed -i.bak '/^SECRET_KEY=/d; /^PROCUREMENT_API_TOKEN=/d' .env && rm .env.bak
-> printf 'SECRET_KEY=%s\n'            "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> .env
-> printf 'PROCUREMENT_API_TOKEN=%s\n' "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
-> ```
->
-> Confirm with `grep -E '^(SECRET_KEY|PROCUREMENT_API_TOKEN)=' .env` —
-> each variable should appear exactly once and not equal the dev value.
+> Both services **refuse to start** if `SECRET_KEY` or
+> `PROCUREMENT_API_TOKEN` are missing. `.env.example` leaves them commented
+> out so nothing boots with shared dev defaults — generate your own with
+> the snippet in [Setup](#setup) above.
 
 ---
 
