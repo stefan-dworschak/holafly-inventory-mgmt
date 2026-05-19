@@ -6,10 +6,12 @@ cp .env.example .env
 source .env
 set +a
 
-uv run procurement/manage.py migrate
-uv run procurement/manage.py loaddata fixtures/users.json
-DRF_TOKEN=$(uv run python procurement/manage.py drf_create_token admin)
+uv run --package procurement uv run \
+                 uvicorn procurement.adapters.web.rest.app:app \
+                 --host 0.0.0.0 --port 8010
+
+DRF_TOKEN=$(uv run --package procurement python procurement/manage.py drf_create_token admin)
 
 echo "Created DRF Token: ${DRF_TOKEN}"
 
-uv run python procurement/manage.py runserver 0.0.0.0:8010
+uv run --package procurement python procurement/manage.py runserver 0.0.0.0:8010

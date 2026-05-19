@@ -6,10 +6,10 @@ cp .env.example .env
 source .env
 set +a
 
-uv run inventory/manage.py migrate
-uv run inventory/manage.py loaddata fixtures/users.json
-DRF_TOKEN=$(uv run python inventory/manage.py drf_create_token admin)
+uv run --package inventory inventory/manage.py migrate
+uv run --package inventory inventory/manage.py loaddata fixtures/users.json
+DRF_TOKEN=$(uv run --package inventory python inventory/manage.py drf_create_token admin)
 
 echo "Created DRF Token: ${DRF_TOKEN}"
 
-uv run python inventory/manage.py runserver 0.0.0.0:8000
+uv run --package inventory python inventory/manage.py runserver 0.0.0.0:8000
