@@ -72,7 +72,7 @@ def test_update_stock_for_product_api(authed_client: Callable, product: Product)
     product.save()
     client, user = authed_client()
     
-    data = {"quantity": 5}
+    data = {"deduct_quantity": 5}
     response = client.patch(f"/api/v1/products/c12ea36e-449b-4372-a597-362421a450b6", data, format="json")
     assert response.json() == {
         "id": "c12ea36e-449b-4372-a597-362421a450b6",
@@ -91,4 +91,31 @@ def test_delete_product_form_stock_api(authed_client: Callable, product: Product
 
     response = client.delete(f"/api/v1/products/c12ea36e-449b-4372-a597-362421a450b6", format="json")
     assert response.status_code == 204
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_add_product_duplicate_sku_returns_409(authed_client: Callable, product: Product):
+    product.save()
+    client, _ = authed_client()
+
+    duplicate = {
+        "sku": "P1",
+        "name": "Another Product 1",
+        "quantity": 1,
+        "low_stock_threshold": 1,
+    }
+    response = client.post("/api/v1/products/", duplicate, format="json")
+    assert response.status_code == 409
+    assert "P1" in response.json()["error"]
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_get_missing_product_returns_404(authed_client: Callable):
+    client, _ = authed_client()
+    response = client.get(
+        "/api/v1/products/00000000-0000-0000-0000-000000000000", format="json"
+    )
+    assert response.status_code == 404
 

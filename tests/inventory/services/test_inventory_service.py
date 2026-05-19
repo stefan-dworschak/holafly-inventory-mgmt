@@ -2,6 +2,7 @@ from uuid import UUID
 
 import pytest
 
+from inventory.domain.exceptions import NotEnoughStockException
 from inventory.domain.services.inventory_service import InventoryService
 
 from inventory.adapters.persistence.django_orm.django_inventory_adapter import (
@@ -88,8 +89,23 @@ def test_inventory_service_update_stock_for_product(product: Product):
     notification_adapter = CeleryRedisNotificationAdapter()
     inventory_service = InventoryService(inventory_adapter, notification_adapter)
 
-    updated_product = inventory_service.update_stock_for_product(product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6'), quantity=1)
+    updated_product = inventory_service.update_stock_for_product(product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6'), deduct_quantity=1)
     assert updated_product.quantity == 9
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_update_stock_for_product_rejects_overdraft(product: Product):
+    product.save()
+
+    inventory_service = InventoryService(
+        DjangoInventoryAdapter(), CeleryRedisNotificationAdapter()
+    )
+
+    with pytest.raises(NotEnoughStockException):
+        inventory_service.update_stock_for_product(
+            product_id=product.id, deduct_quantity=product.quantity + 1
+        )
 
 
 @pytest.mark.integration

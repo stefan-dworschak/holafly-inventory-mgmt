@@ -4,10 +4,12 @@ from uuid import uuid4
 import pytest
 
 from inventory.domain.exceptions import (
-    ProductNotFoundException,
-    NoValidUpdateDataException,
-    UpdateFailedException,
+    DuplicateSkuException,
+    InvalidProductDataException,
     MultipleProductsFoundException,
+    NoValidUpdateDataException,
+    ProductNotFoundException,
+    UpdateFailedException,
 )
 
 from inventory.adapters.persistence.django_orm.django_inventory_adapter import (
@@ -109,5 +111,39 @@ def test_delete_product(product: Product):
 
     adapter = DjangoInventoryAdapter()
     deleted = adapter.delete_product(product_id=product.id)
-    assert deleted == 1 
+    assert deleted == 1
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_add_product_duplicate_sku_raises(product: Product):
+    product.save()
+
+    adapter = DjangoInventoryAdapter()
+    with pytest.raises(DuplicateSkuException):
+        adapter.add_product(
+            sku="P1",
+            name="Different Name",
+            quantity=1,
+            low_stock_threshold=1,
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_update_product_negative_quantity_rejected(product: Product):
+    product.save()
+
+    adapter = DjangoInventoryAdapter()
+    with pytest.raises(InvalidProductDataException):
+        adapter.update_product(
+            product_id=UUID('c12ea36e-449b-4372-a597-362421a450b6'),
+            quantity=-5,
+        )
+
+    # row left untouched
+    untouched = Product.objects.get(id=UUID('c12ea36e-449b-4372-a597-362421a450b6'))
+    assert untouched.quantity == 10
+
+
 

@@ -11,6 +11,9 @@ wheels/
 *.swp
 *.swo
 *.swn
+.*.swp
+.*.swo
+.*.swn
 
 # Virtual environments
 .venv
@@ -20,3 +23,9 @@ wheels/
 
 # Local SQLite databases
 data/
+
+# Coverage / pytest artefacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/

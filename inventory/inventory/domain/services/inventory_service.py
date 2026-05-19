@@ -36,14 +36,14 @@ class InventoryService:
         return self.inventory_repository.get_product_detail(product_id=product_id)
 
     @validate_call(validate_return=True)
-    def update_stock_for_product(self, product_id: UUID, quantity: int) -> Product:
+    def update_stock_for_product(self, product_id: UUID, deduct_quantity: int) -> Product:
         product = self.inventory_repository.get_product_detail(product_id=product_id)
 
-        if product.quantity - quantity <= 0:
-            raise NotEnoughStockException(product_id, quantity)
-        
+        if product.quantity - deduct_quantity < 0:
+            raise NotEnoughStockException(product_id, deduct_quantity)
+
         updated_product = self.inventory_repository.update_product(
-            product_id=product_id, quantity=(product.quantity - quantity))
+            product_id=product_id, quantity=(product.quantity - deduct_quantity))
 
         if updated_product.quantity < product.low_stock_threshold:
             self.notification_dispatcher.dispatch_low_stock_notification(

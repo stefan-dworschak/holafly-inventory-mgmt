@@ -11,5 +11,4 @@ class ProductSerializer(serializers.Serializer):
 
 class ProductUpdateSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
-    quantity = serializers.IntegerField(min_value=1, required=True)
-
+    deduct_quantity = serializers.IntegerField(min_value=1, required=True)

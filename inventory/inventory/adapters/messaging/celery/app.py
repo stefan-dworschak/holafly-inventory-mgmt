@@ -11,5 +11,11 @@ celery_app.autodiscover_tasks()
 
 @celery_app.task(name='inventory.messaging.send_low_stock_alert')
 def send_low_stock_alert(sku: str, quantity: int) -> None:
-    # TODO: notify the Procurement System that stock is low for `sku`.
-    pass
+    """Producer-side registration for the low-stock alert task.
+
+    The inventory service only *emits* this task — the actual consumer lives
+    in the procurement service (``procurement.adapters.messaging.celery``),
+    where a worker subscribed to the same task name records a restock request.
+    This body is intentionally a no-op; do not add inventory-side handling here.
+    """
+    return None
