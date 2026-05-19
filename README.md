@@ -61,12 +61,18 @@ single `.venv` at the repo root.
 > only so that local checkout-and-run works. Both services **refuse to
 > start** if `SECRET_KEY` or `PROCUREMENT_API_TOKEN` are missing — there is
 > no in-code fallback — but they will happily boot with the dev values if
-> you forget to replace them. Before any non-local deploy, regenerate both:
+> you forget to replace them. After `cp .env.example .env`, regenerate
+> both and write them straight into `.env`:
 >
 > ```bash
-> python -c "import secrets; print(secrets.token_urlsafe(64))"  # SECRET_KEY
-> python -c "import secrets; print(secrets.token_urlsafe(32))"  # PROCUREMENT_API_TOKEN
+> # Strip the dev placeholders, then append fresh secrets
+> sed -i.bak '/^SECRET_KEY=/d; /^PROCUREMENT_API_TOKEN=/d' .env && rm .env.bak
+> printf 'SECRET_KEY=%s\n'            "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> .env
+> printf 'PROCUREMENT_API_TOKEN=%s\n' "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
 > ```
+>
+> Confirm with `grep -E '^(SECRET_KEY|PROCUREMENT_API_TOKEN)=' .env` —
+> each variable should appear exactly once and not equal the dev value.
 
 ### Environment variables
 
