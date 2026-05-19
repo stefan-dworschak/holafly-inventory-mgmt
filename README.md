@@ -24,10 +24,6 @@ Two micro-services that communicate over a Celery/Redis message bus:
 | `inventory`   | Django + DRF      | 8000  | Django ORM → `data/inventory.sqlite3`    |
 | `procurement` | FastAPI           | 8010  | SQLAlchemy → `data/procurement.sqlite3`  |
 
-Both SQLite files live in the repo-root `data/` directory. In Docker the
-host's `./data` is bind-mounted at `/data` so the DBs persist across
-container restarts and rebuilds.
-
 `inventory` tracks stock and emits a Celery task on low-stock thresholds.
 `procurement` consumes that task and records a restock request, exposing it
 via a small read API.
@@ -49,6 +45,7 @@ via a small read API.
 git clone <repo-url> holafly-inventory-mgmt
 cd holafly-inventory-mgmt
 cp .env.example .env
+mkdir -p data
 uv sync --all-packages
 ```
 
@@ -56,116 +53,15 @@ The repo is a uv workspace with two members (`inventory/`, `procurement/`).
 `--all-packages` installs the runtime dependencies of both members into a
 single `.venv` at the repo root.
 
-> **Production checklist — do not skip.** `.env.example` ships with dev
-> placeholders (`SECRET_KEY=devsecret`, `PROCUREMENT_API_TOKEN=devtoken`)
-> only so that local checkout-and-run works. Both services **refuse to
-> start** if `SECRET_KEY` or `PROCUREMENT_API_TOKEN` are missing — there is
-> no in-code fallback — but they will happily boot with the dev values if
-> you forget to replace them. After `cp .env.example .env`, regenerate
-> both and write them straight into `.env`:
->
-> ```bash
-> # Strip the dev placeholders, then append fresh secrets
-> sed -i.bak '/^SECRET_KEY=/d; /^PROCUREMENT_API_TOKEN=/d' .env && rm .env.bak
-> printf 'SECRET_KEY=%s\n'            "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> .env
-> printf 'PROCUREMENT_API_TOKEN=%s\n' "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
-> ```
->
-> Confirm with `grep -E '^(SECRET_KEY|PROCUREMENT_API_TOKEN)=' .env` —
-> each variable should appear exactly once and not equal the dev value.
+> **Create `data/` before first run.** Both services persist SQLite files
+> to the repo-root `data/` directory. Running locally without it will fail
+> on startup, and `docker compose up` will create it as a bind mount owned
+> by `root`, which then blocks local (non-Docker) runs until you `chown`
+> it back. Create it once up-front with `mkdir -p data` to avoid both.
 
-### Environment variables
-
-Variables marked **required** have no in-code default — both services fail
-fast at startup if they're missing.
-
-| Variable                     | Purpose                                  | Default / Required                                |
-| ---------------------------- | ---------------------------------------- | ------------------------------------------------- |
-| `SECRET_KEY`                 | Django secret key                        | **required** (no default)                         |
-| `PROCUREMENT_API_TOKEN`      | Bearer token required by the FastAPI API | **required** (no default)                         |
-| `DEBUG`                      | Django debug mode                        | `False`                                           |
-| `ALLOWED_HOSTS`              | Django allowed hosts                     | `[]` (deny all)                                   |
-| `CELERY_BROKER_URL`          | Redis URL used by both services          | `redis://localhost:6379/0`                        |
-| `DATABASE_URL`               | Inventory DB URL                         | `sqlite:///<repo>/data/inventory.sqlite3`         |
-| `PROCUREMENT_DATABASE_URL`   | Procurement DB URL                       | `sqlite:///<repo>/data/procurement.sqlite3`       |
-
----
-
-## Hexagonal Architecture
-
-Both services follow Ports & Adapters. Domain logic is isolated from
-frameworks; everything outside the domain plugs in via adapters.
-
-```
-<service>/
-├── domain/
-│   ├── models/         # Plain dataclasses (no ORM, no framework)
-│   ├── services/       # Use cases — orchestrate domain logic
-│   └── ports/          # Protocols / interfaces the domain depends on
-│       └── repositories/
-└── adapters/
-    ├── persistence/    # Django ORM (inventory) / SQLAlchemy (procurement)
-    ├── web/rest/       # DRF views / FastAPI routes
-    └── messaging/      # Celery tasks (producer in inventory, consumer in procurement)
-```
-
-The rules:
-
-- **Domain depends on nothing.** No imports from `adapters/`, no framework code.
-- **Adapters depend on domain.** They implement the ports defined in `domain/ports/`.
-- **Composition** is done in `<service>/config/container.py`, which wires
-  concrete adapters into services at startup.
-
-This means swapping SQLAlchemy for Postgres, or Celery for SQS, is a
-one-adapter change — the domain doesn't know or care.
-
----
-
-## Database
-
-SQLite is the default for both services to keep local setup friction-free —
-no extra container, no credentials, no `CREATE DATABASE` step. Clone the
-repo, run the services, and the schema is provisioned into a file under
-`data/`. This is ideal for development, demos, and the test suite, but
-SQLite is not recommended for production (single-writer locking, limited
-concurrency, no network access).
-
-> Both services always read/write SQLite from the repo-root `data/`
-> directory — local runs use it directly, and Docker bind-mounts
-> `./data` to `/data` so the same files persist across rebuilds. The
-> directory is auto-created on settings import if it doesn't exist.
-
-For production, swap the driver via the `DATABASE_URL` and
-`PROCUREMENT_DATABASE_URL` environment variables — no code changes needed.
-
-### PostgreSQL
-
-```bash
-# inventory (Django)
-DATABASE_URL=postgres://user:password@db-host:5432/inventory
-
-# procurement (SQLAlchemy)
-PROCUREMENT_DATABASE_URL=postgresql+psycopg://user:password@db-host:5432/procurement
-```
-
-Install the driver: `uv add psycopg[binary]`.
-
-### MySQL
-
-```bash
-# inventory (Django)
-DATABASE_URL=mysql://user:password@db-host:3306/inventory
-
-# procurement (SQLAlchemy)
-PROCUREMENT_DATABASE_URL=mysql+pymysql://user:password@db-host:3306/procurement
-```
-
-Install the driver: `uv add mysqlclient` (inventory) and
-`uv add pymysql` (procurement).
-
-Inventory uses Django migrations (`manage.py migrate`); procurement uses
-SQLAlchemy `create_all()` on startup, so neither service needs a separate
-schema-management step when switching backends.
+`.env.example` ships with working dev placeholders so you can clone and run
+immediately. **Before deploying anywhere non-local**, replace the dev
+secrets — see [Environment variables](#environment-variables) below.
 
 ---
 
@@ -376,3 +272,116 @@ Then set auth at the collection level:
 - **Procurement:** *Type* = `Bearer Token`, *Token* = `<your PROCUREMENT_API_TOKEN>`.
 
 Requests in the collection inherit the auth header.
+
+---
+
+## Environment variables
+
+Variables marked **required** have no in-code default — both services fail
+fast at startup if they're missing.
+
+| Variable                     | Purpose                                  | Default / Required                                |
+| ---------------------------- | ---------------------------------------- | ------------------------------------------------- |
+| `SECRET_KEY`                 | Django secret key                        | **required** (no default)                         |
+| `PROCUREMENT_API_TOKEN`      | Bearer token required by the FastAPI API | **required** (no default)                         |
+| `DEBUG`                      | Django debug mode                        | `False`                                           |
+| `ALLOWED_HOSTS`              | Django allowed hosts                     | `[]` (deny all)                                   |
+| `CELERY_BROKER_URL`          | Redis URL used by both services          | `redis://localhost:6379/0`                        |
+| `DATABASE_URL`               | Inventory DB URL                         | `sqlite:///<repo>/data/inventory.sqlite3`         |
+| `PROCUREMENT_DATABASE_URL`   | Procurement DB URL                       | `sqlite:///<repo>/data/procurement.sqlite3`       |
+
+> **Production checklist — do not skip.** `.env.example` ships with dev
+> placeholders (`SECRET_KEY=devsecret`, `PROCUREMENT_API_TOKEN=devtoken`)
+> only so that local checkout-and-run works. Both services **refuse to
+> start** if `SECRET_KEY` or `PROCUREMENT_API_TOKEN` are missing — there is
+> no in-code fallback — but they will happily boot with the dev values if
+> you forget to replace them. After `cp .env.example .env`, regenerate
+> both and write them straight into `.env`:
+>
+> ```bash
+> # Strip the dev placeholders, then append fresh secrets
+> sed -i.bak '/^SECRET_KEY=/d; /^PROCUREMENT_API_TOKEN=/d' .env && rm .env.bak
+> printf 'SECRET_KEY=%s\n'            "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> .env
+> printf 'PROCUREMENT_API_TOKEN=%s\n' "$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')" >> .env
+> ```
+>
+> Confirm with `grep -E '^(SECRET_KEY|PROCUREMENT_API_TOKEN)=' .env` —
+> each variable should appear exactly once and not equal the dev value.
+
+---
+
+## Database
+
+SQLite is the default for both services to keep local setup friction-free —
+no extra container, no credentials, no `CREATE DATABASE` step. Clone the
+repo, run the services, and the schema is provisioned into a file under
+`data/`. This is ideal for development, demos, and the test suite, but
+SQLite is not recommended for production (single-writer locking, limited
+concurrency, no network access).
+
+> Both services always read/write SQLite from the repo-root `data/`
+> directory — local runs use it directly, and Docker bind-mounts
+> `./data` to `/data` so the same files persist across rebuilds. The
+> directory is auto-created on settings import if it doesn't exist.
+
+For production, swap the driver via the `DATABASE_URL` and
+`PROCUREMENT_DATABASE_URL` environment variables — no code changes needed.
+
+### PostgreSQL
+
+```bash
+# inventory (Django)
+DATABASE_URL=postgres://user:password@db-host:5432/inventory
+
+# procurement (SQLAlchemy)
+PROCUREMENT_DATABASE_URL=postgresql+psycopg://user:password@db-host:5432/procurement
+```
+
+Install the driver: `uv add psycopg[binary]`.
+
+### MySQL
+
+```bash
+# inventory (Django)
+DATABASE_URL=mysql://user:password@db-host:3306/inventory
+
+# procurement (SQLAlchemy)
+PROCUREMENT_DATABASE_URL=mysql+pymysql://user:password@db-host:3306/procurement
+```
+
+Install the driver: `uv add mysqlclient` (inventory) and
+`uv add pymysql` (procurement).
+
+Inventory uses Django migrations (`manage.py migrate`); procurement uses
+SQLAlchemy `create_all()` on startup, so neither service needs a separate
+schema-management step when switching backends.
+
+---
+
+## Hexagonal Architecture
+
+Both services follow Ports & Adapters. Domain logic is isolated from
+frameworks; everything outside the domain plugs in via adapters.
+
+```
+<service>/
+├── domain/
+│   ├── models/         # Plain dataclasses (no ORM, no framework)
+│   ├── services/       # Use cases — orchestrate domain logic
+│   └── ports/          # Protocols / interfaces the domain depends on
+│       └── repositories/
+└── adapters/
+    ├── persistence/    # Django ORM (inventory) / SQLAlchemy (procurement)
+    ├── web/rest/       # DRF views / FastAPI routes
+    └── messaging/      # Celery tasks (producer in inventory, consumer in procurement)
+```
+
+The rules:
+
+- **Domain depends on nothing.** No imports from `adapters/`, no framework code.
+- **Adapters depend on domain.** They implement the ports defined in `domain/ports/`.
+- **Composition** is done in `<service>/config/container.py`, which wires
+  concrete adapters into services at startup.
+
+This means swapping SQLAlchemy for Postgres, or Celery for SQS, is a
+one-adapter change — the domain doesn't know or care.
