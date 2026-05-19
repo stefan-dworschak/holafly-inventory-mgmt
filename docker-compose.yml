@@ -20,6 +20,7 @@ services:
     volumes:
       - ./inventory:/app/inventory
       - ./data:/data
+      - ./fixtures:/fixtures
     depends_on:
       - redis
 
